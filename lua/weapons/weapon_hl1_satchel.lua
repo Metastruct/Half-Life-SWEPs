@@ -102,6 +102,7 @@ function SWEP:Throw()
 				pSatchel:SetVelocity(vecThrow)
 				pSatchel:SetLocalAngularVelocity(Angle(0,400,0))
 				pSatchel:Spawn()
+				hook.Run("PlayerSpawnedSENT",self.Owner,pSatchel)
 			end
 		end
 		
