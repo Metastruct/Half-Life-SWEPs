@@ -594,7 +594,7 @@ end
 
 function SWEP:WeaponSound(snd, lvl, pitch)
 	snd = snd or self.Primary.Sound or self.PrimarySounds[math.random(1, #self.PrimarySounds)]
-	lvl = lvl or 100
+	lvl = lvl or 75
 	pitch = pitch or 100
 	self:EmitSound(snd, lvl, pitch, 1)
 	if lvl >= 100 then
