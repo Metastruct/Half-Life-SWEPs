@@ -68,6 +68,7 @@ function SWEP:PrimaryAttack()
 					pEnt:SetOwner(self.Owner)
 					pEnt.WeaponClass = self:GetClass()
 					pEnt:Spawn()
+					hook.Run("PlayerSpawnedSENT",self.Owner,pEnt)
 				end
 			end			
 			self:TakeClipPrimary()
