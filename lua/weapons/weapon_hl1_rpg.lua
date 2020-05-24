@@ -38,6 +38,8 @@ SWEP.ViewModel			= SWEP.CModel
 SWEP.WorldModel			= SWEP.PlayerModel
 
 SWEP.ReloadTime			= 2
+SWEP.UnloadTime			= 2
+SWEP.UnloadAnimSpeed	= -.75
 
 SWEP.Primary.Sound			= Sound("weapons/rocketfire1.wav")
 SWEP.Primary.DamageCVar		= "hl1_sk_plr_dmg_xbow_bolt_plr"

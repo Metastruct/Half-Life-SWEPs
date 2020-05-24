@@ -169,12 +169,16 @@ SWEP.AutoReload				= true
 SWEP.ReloadSound			= ""
 SWEP.ReloadTime				= 1
 
+SWEP.UnloadAnimSpeed		= 1
+
 SWEP.DrySound				= Sound("weapons/357_cock1.wav")
 
 SWEP.MuzzleEffect			= "hl1_mflash"
 SWEP.MuzzleScale			= 1
 SWEP.MuzzleSmoke			= false
 SWEP.MuzzlePos				= Vector(9, 0, 4) -- thirdperson muzzle position
+
+SWEP.CrouchAccuracyMul		= nil -- lower is better, e.g. 0.75
 
 SWEP.RicochetSounds = {
 	Sound("weapons/ric1.wav"),
@@ -193,6 +197,7 @@ end
 function SWEP:SetupDataTables()
 	self:NetworkVar("Bool", 0, "iPlayEmptySound")
 	self:NetworkVar("Bool", 1, "InZoom")
+	self:NetworkVar("Bool", 2, "BlockAutoReload")
 	self:NetworkVar("Float", 0, "WeaponIdleTime")
 	self:NetworkVar("Float", 1, "ReloadTime")
 	self:NetworkVar("Float", 10, "UnloadTime")
@@ -310,16 +315,31 @@ end
 function SWEP:Equip(ply)
 	if IsValid(self.Owner) and self.Owner:IsPlayer() then
 		self:CallOnClient("SetPlayerWorldModel")
-	end
+	end	
 	
 	local ammotypeP = self:GetPrimaryAmmoType()
 	local ammotypeS = self:GetSecondaryAmmoType()
-	if IsValid(ply) and ply:IsPlayer() and (cvars.Bool("hl1_sv_clampammo") or ammotypeP == game.GetAmmoID("hornet")) then
-		if self.Primary.MaxAmmo and ply:GetAmmoCount(ammotypeP) > self.Primary.MaxAmmo then
-			ply:SetAmmo(self.Primary.MaxAmmo, ammotypeP)
+	if IsValid(ply) and ply:IsPlayer() then
+		if self.DroppedAmmo then
+			ply:SetAmmo(ply:GetAmmoCount(ammotypeP) - self.Primary.DefaultClip + self.DroppedAmmo, ammotypeP)
 		end
-		if self.Secondary.MaxAmmo and ply:GetAmmoCount(ammotypeS) > self.Secondary.MaxAmmo then
-			ply:SetAmmo(self.Secondary.MaxAmmo, ammotypeS)
+		if cvars.Bool("hl1_sv_clampammo") or ammotypeP == game.GetAmmoID("hornet") then
+			local maxAmmoPrimary, maxAmmoSecondary = self.Primary.MaxAmmo, self.Secondary.MaxAmmo
+			local maxAmmoMul = ply.HL1MaxAmmoMultiplier
+			if maxAmmoMul then
+				if maxAmmoPrimary then
+					maxAmmoPrimary = math.Round(maxAmmoPrimary * maxAmmoMul)
+				end
+				if maxAmmoSecondary then
+					maxAmmoSecondary = math.Round(maxAmmoSecondary * maxAmmoMul)
+				end
+			end
+			if maxAmmoPrimary and ply:GetAmmoCount(ammotypeP) > maxAmmoPrimary then
+				ply:SetAmmo(maxAmmoPrimary, ammotypeP)
+			end
+			if maxAmmoSecondary and ply:GetAmmoCount(ammotypeS) > maxAmmoSecondary then
+				ply:SetAmmo(maxAmmoSecondary, ammotypeS)
+			end
 		end
 	end
 
@@ -570,8 +590,10 @@ function SWEP:DefReload(anim, fDelay)
 		return
 	end
 	if self:GetReloadTime() >= CurTime() or self:rgAmmo() <= 0 or self:Clip1() >= self.Primary.ClipSize then return end
+	if self.Owner.HL1ReloadSpeed then fDelay = fDelay / self.Owner.HL1ReloadSpeed end
 	self:SetReloadTime(CurTime() + fDelay)
 	self:SendWeaponAnim(anim)
+	if self.Owner.HL1ReloadSpeed then self.Owner:GetViewModel():SetPlaybackRate(1 * self.Owner.HL1ReloadSpeed) end
 	if self.TPReloadAnim then
 		self:SetPlayerAnimation(self.TPReloadAnim)
 	else
@@ -579,15 +601,28 @@ function SWEP:DefReload(anim, fDelay)
 	end
 	self:EmitSound(self.ReloadSound)
 	self:SetWeaponIdleTime(CurTime() + 3)
+	self:SetBlockAutoReload(false)
 	return true
+end
+
+function SWEP:ReloadPreEnd()
+end
+
+function SWEP:ReloadEnd()
 end
 
 function SWEP:Unload()
 	if self.UnloadTime and self:Clip1() > 0 then
 		self:SendWeaponAnim(ACT_VM_IDLE)
-		self.AutoReload = false
+		self:SetBlockAutoReload(true)
 		self:SetWeaponIdleTime(0)
-		self:SendWeaponAnim(ACT_VM_RELOAD)
+		timer.Simple(.1, function()
+			if IsValid(self) and IsValid(self:GetOwner()) then
+				self:SendWeaponAnim(ACT_VM_RELOAD)
+				self.Owner:GetViewModel():SetPlaybackRate(self.UnloadAnimSpeed)
+			end
+		end)
+		self:SetNextAttack(CurTime() + self.UnloadTime)
 		self:SetUnloadTime(CurTime() + self.UnloadTime)
 	end
 end
@@ -610,8 +645,11 @@ end
 
 function SWEP:ShootBullet(damage, num_bullets, aimcone)
 	aimcone = isvector(aimcone) and aimcone or Vector(aimcone, aimcone, 0)
-	local punchangle = self.Owner.punchangle and Angle(self.Owner.punchangle[1], 0, 0) or Angle()
+	local punchangle = self.Owner.punchangle or Angle()
 	local ang = self.Owner:EyeAngles() + punchangle
+	if self.CrouchAccuracyMul and self.Owner:OnGround() and self.Owner:Crouching() then
+		aimcone = aimcone * self.CrouchAccuracyMul
+	end
 
 	local bullet = {}
 	bullet.Num 		= num_bullets
@@ -630,6 +668,9 @@ function SWEP:SendRecoil(angle)
 	if !self.GoldSrcRecoil or self.Owner:IsNPC() then return end
 	if angle == 1 then angle = Angle(self.Secondary.Recoil + math.Rand(self.Secondary.RecoilRandom[1], self.Secondary.RecoilRandom[2]), 0, 0) end
 	angle = angle or Angle(self.Primary.Recoil + math.Rand(self.Primary.RecoilRandom[1], self.Primary.RecoilRandom[2]), 0, 0)
+	if self.CrouchAccuracyMul and self.Owner:OnGround() and self.Owner:Crouching() then
+		angle = angle * self.CrouchAccuracyMul
+	end
 	if game.SinglePlayer() and SERVER then
 		net.Start("HL1punchangle")
 		net.WriteEntity(self.Owner)
@@ -714,6 +755,7 @@ function SWEP:Think()
 	if reload > 0 then
 		if reload <= CurTime() then
 			self:SetReloadTime(0)
+			self:ReloadPreEnd()
 			if cvars.Bool("hl1_sv_unlimitedammo") then
 				self:SetClip1(self.Primary.ClipSize)
 			else
@@ -721,18 +763,19 @@ function SWEP:Think()
 				self:SetClip1(math.min((self:Ammo1() + clip), self.Primary.ClipSize))
 				self.Owner:RemoveAmmo(self.Primary.ClipSize - clip, self.Primary.Ammo)
 			end
+			self:ReloadEnd()
 		else
 			return
 		end
 	end
 	
-	if self.AutoReload and IsValid(self.Owner) and self.Owner:Alive() and self:Clip1() <= 0 and self:rgAmmo() > 0 and self:GetNextPrimaryFire() <= CurTime() and self.Primary.ClipSize > 0 then
+	if self.AutoReload and !self:GetBlockAutoReload() and IsValid(self.Owner) and self.Owner:Alive() and self:Clip1() <= 0 and self:rgAmmo() > 0 and self:GetNextPrimaryFire() <= CurTime() and self.Primary.ClipSize > 0 then
 		self:Reload()
 	end
 	
 	local unload = self:GetUnloadTime()
 	if unload > 0 and unload <= CurTime() then
-		self.AutoReload = false
+		self:SetBlockAutoReload(true)
 		local clip = self:Clip1()
 		self:SetClip1(0)
 		if SERVER then self.Owner:GiveAmmo(clip, self.Primary.Ammo, true) end
@@ -885,7 +928,7 @@ end
 function SWEP:CalcView(ply, pos, ang, fov)
 	local punchangle = ply.punchangle
 	if punchangle then
-		ang[1] = ang[1] + punchangle[1]
+		HL1_VectorAdd(ang, punchangle, ang)
 		HL1_DropPunchAngle(FrameTime(), punchangle)
 	end
 	
@@ -1036,13 +1079,17 @@ function SWEP:DoDrawCrosshair(x, y)
 end
 
 function SWEP:PostDrawViewModel(vm, wep, ply)
+	--if BRANCH == "x86-64" then return end
+
 	if cvar_fixchrome:GetBool() then
 		local lightCol = render.GetLightColor(vm:GetPos() + Vector(0,0,2))
-		if render.GetToneMappingScaleLinear()[1] != 1 then -- checking for HDR
-			lightCol = (lightCol[1] + lightCol[2] + lightCol[3]) / 3
+		local hdrScale = render.GetToneMappingScaleLinear()
+		if hdrScale[1] != 1 then -- checking for HDR
+			--[[lightCol = (lightCol[1] + lightCol[2] + lightCol[3]) / 3
 			lightCol = lightCol / 2 + .02
 			lightCol = math.min(lightCol, .3)
-			lightCol = Vector(lightCol, lightCol, lightCol)
+			lightCol = Vector(lightCol, lightCol, lightCol)]]
+			lightCol = lightCol * 1.75 + hdrScale / 28
 		else
 			lightCol = lightCol * 2
 		end
@@ -1102,8 +1149,8 @@ function HL1_VectorNormalize(v)
 	if length != 0 then
 		ilength = 1/length
 		v[1] = v[1] * ilength
-		v[2] = v[1] * ilength -- actually should be v[2]
-		v[3] = v[1] * ilength -- and v[3], but currently it looks even better
+		v[2] = v[2] * ilength
+		v[3] = v[3] * ilength
 	end
 
 	return length
@@ -1113,4 +1160,10 @@ function HL1_VectorScale(ina, scale, out)
 	out[1] = ina[1]*scale
 	out[2] = ina[2]*scale
 	out[3] = ina[3]*scale
+end
+
+function HL1_VectorAdd(a, b, c)
+	c[1] = a[1] + b[1]
+	c[2] = a[2] + b[2]
+	c[3] = a[3] + b[3]
 end

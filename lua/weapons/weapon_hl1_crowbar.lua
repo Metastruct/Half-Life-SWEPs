@@ -60,6 +60,11 @@ local textureVol = {
 	[MAT_PLASTIC] = 0.4
 }
 
+local noFleshSound = {
+	["monster_miniturret"] = true,
+	["monster_turret"] = true,
+}
+
 function SWEP:FindHullIntersection(vecSrc, tr, mins, maxs, pEntity)
 	local minmaxs = {mins, maxs}
 	local vecHullEnd = tr.HitPos
@@ -184,7 +189,7 @@ function SWEP:Swing(fFirst)
 		local pEntity = tr.Entity
 		
 		if pEntity then
-			if (pEntity:IsPlayer() or pEntity:IsNPC()) and tr.MatType != MAT_METAL then				
+			if (pEntity:IsPlayer() or pEntity:IsNPC()) and !noFleshSound[pEntity:GetClass()] then				
 				self:EmitSound(self.PrimaryHitBodSounds[math.random(1,3)], 85, 100, 1, CHAN_ITEM)
 			else
 				local fvolbar = textureVol[tr.MatType] or 0

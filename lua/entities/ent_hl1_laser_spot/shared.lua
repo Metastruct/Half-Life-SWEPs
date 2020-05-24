@@ -8,6 +8,10 @@ function ENT:SetupDataTables()
 	self:NetworkVar("Bool", 0, "DrawLaser")
 end
 
+function ENT:IsActive()
+	return self.GetDrawLaser && self:GetDrawLaser()
+end
+
 if SERVER then
 
 function ENT:Initialize()

@@ -161,7 +161,7 @@ function ENT:Explode(pTrace)
 	local hitpos, hitnorm = pTrace.HitPos, pTrace.HitNormal
 
 	// Pull out of the wall a bit
-	if pTrace.Fraction != 1 then
+	if pTrace.Fraction != 1 and self:WaterLevel() < 2 then
 		local tr = util.TraceLine({
 			start = self:GetPos(),
 			endpos = hitpos + (hitnorm * (self.dmg - 24) * 0.6),

@@ -182,7 +182,12 @@ function SWEP:Reload()
 		self:SetfInSpecialReload(2)
 		self:EmitSound(self.ReloadSnds[math.random(1, 2)], 80, 85 + math.random(0, 31), 1, CHAN_ITEM)
 		self:SendWeaponAnim(ACT_VM_RELOAD)
-		self:SetWeaponIdleTime(CurTime() + self.ReloadTime)
+		local reloadTime = self.ReloadTime
+		if self.Owner.HL1ReloadSpeed then
+			reloadTime = reloadTime / self.Owner.HL1ReloadSpeed
+			self.Owner:GetViewModel():SetPlaybackRate(1 * self.Owner.HL1ReloadSpeed)
+		end
+		self:SetWeaponIdleTime(CurTime() + reloadTime)
 	else
 		// Add them to the clip
 		self:SetClip1(self:Clip1() + 1)

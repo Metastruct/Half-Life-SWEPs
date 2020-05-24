@@ -2,10 +2,11 @@ AddCSLuaFile("cl_init.lua")
 AddCSLuaFile("shared.lua")
 include("shared.lua")
 
-ENT.Model		= Model("models/rpgrocket.mdl")
-ENT.Trail		= "hl1/sprites/smoke.vmt"
-ENT.Sprite		= "sprites/animglow01.vmt"
-ENT.FlySound	= "Missile.Ignite"
+ENT.Model			= Model("models/rpgrocket.mdl")
+ENT.Trail			= "hl1/sprites/smoke.vmt"
+ENT.TrailLifeTime	= 4
+ENT.Sprite			= "sprites/animglow01.vmt"
+ENT.FlySound		= "Missile.Ignite"
 
 function ENT:Initialize()
 	self:SetMoveType(MOVETYPE_FLYGRAVITY)
@@ -73,7 +74,7 @@ function ENT:Explode(ent)
 	self:AddEffects(EF_NODRAW)
 	self:AddSolidFlags(FSOLID_NOT_SOLID)
 	if self.glow and IsValid(self.glow) then self.glow:Remove() end
-	SafeRemoveEntityDelayed(self, 4)
+	SafeRemoveEntityDelayed(self, self.TrailLifeTime)
 	
 	gamemode.Call("OnEntityExplosion", self, tr.HitPos, self.radius, self.dmg)
 end
@@ -98,7 +99,7 @@ function ENT:Think()
 		glow:Spawn()
 		glow:SetParent(self)
 		glow:SetPos(self:GetPos())
-		util.SpriteTrail(self, 0, Color(224,224,255,255), true, 10, 15, 4, .03, self.Trail)
+		util.SpriteTrail(self, 0, Color(224,224,255,255), true, 10, 15, self.TrailLifeTime, .03, self.Trail)
 		
 		self.m_flIgniteTime = CurTime()
 

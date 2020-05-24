@@ -43,7 +43,14 @@ function ENT:Touch(ent)
 
 	if IsValid(self.Owner) and ent:Health() > 0 and ent:GetClass() != "nihilanth_energy_ball" then
 		self:EmitSound("Hornet.Die")
-		ent:TakeDamage(self.m_flDamage, self.Owner, self)
+		local dmginfo = DamageInfo()
+		dmginfo:SetAttacker(self.Owner)
+		dmginfo:SetInflictor(self)
+		dmginfo:SetDamage(self.m_flDamage)
+		dmginfo:SetDamageType(DMG_NEVERGIB)
+		dmginfo:SetDamageForce(self:GetForward() * 2000)
+		dmginfo:SetDamagePosition(self:GetPos())
+		ent:TakeDamageInfo(dmginfo)
 	end
 
 	self.noDamage = true
